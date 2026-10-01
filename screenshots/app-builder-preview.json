@@ -1,0 +1,36 @@
+{
+  "url": "http://127.0.0.1:8080/",
+  "viewports": {
+    "desktop": {
+      "width": 1280,
+      "height": 800,
+      "status": 200,
+      "title": "The AI Dictionary",
+      "hasCanvas": false,
+      "bodyTextLen": 4325,
+      "bodyTextHash": "913363b9c386060ab7eb82d0c910c35a1c3288a06ea553732c49c37ae4275553",
+      "bodyTextPrefix": "Skip to content AI DICTIONARY Browse Scale A–Z Saved About Searc",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/app-builder-preview.png"
+    },
+    "mobile": {
+      "width": 390,
+      "height": 844,
+      "status": 200,
+      "title": "The AI Dictionary",
+      "hasCanvas": false,
+      "bodyTextLen": 4183,
+      "bodyTextHash": "e27fbeacc2f1c08d6260c049ab14649b9d458ad2668fb201835d58122225b40f",
+      "bodyTextPrefix": "Skip to content AI DICTIONARY VERSION 1.2 · 421 TERMS · 32 CATEG",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/app-builder-preview-mobile.png"
+    }
+  },
+  "brandWarnings": [],
+  "authWarnings": [],
+  "verdictFile": "/workspace/screenshots/app-builder-preview.json"
+}

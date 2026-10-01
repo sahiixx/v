@@ -1,0 +1,551 @@
+#!/usr/bin/env python3
+"""Generate src/data/glossary.json from compact term tuples."""
+from __future__ import annotations
+
+import json
+import re
+from pathlib import Path
+
+# (term, definition, category, statuses csv, aliases pipe)
+RAW: list[tuple[str, str, str, str, str]] = []
+
+
+def add(term: str, definition: str, category: str, status: str = "", aliases: str = "") -> None:
+    RAW.append((term, definition, category, status, aliases))
+
+
+# ---------- Core Concepts ----------
+add("AI (Artificial Intelligence)", "Computational systems that can perform functions associated with intelligence, such as prediction, learning, reasoning, perception, planning, generation, or decision support.", "core", "", "Artificial Intelligence|AI")
+add("AGI (Artificial General Intelligence)", "Hypothetical broad, flexible, transferable intelligence that can perform most cognitive work at roughly human level or better, including on unfamiliar tasks. No consensus threshold or accepted demonstration exists.", "core", "debated,hypothetical", "Artificial General Intelligence|AGI")
+add("ASI (Artificial Superintelligence)", "Hypothetical capability substantially beyond the best humans across virtually all cognitive domains.", "core", "hypothetical", "Artificial Superintelligence|ASI")
+add("ANI (Artificial Narrow Intelligence)", "AI without demonstrated general intelligence. Classic ANI is task-specific, but modern foundation models are general-purpose across many tasks while still not AGI.", "core", "", "Artificial Narrow Intelligence|ANI|Narrow AI")
+add("Machine Learning (ML)", "Systems that can learn patterns from data instead of being explicitly programmed.", "core", "", "ML")
+add("Deep Learning", "Machine learning using multi-layer neural networks.", "core")
+add("Neural Network", "Computing model inspired by biological neurons; a large class of modern AI is built on neural networks.", "core", "", "NN")
+add("Foundation Model", "Large model trained on broad data and adaptable to many downstream tasks.", "core")
+add("Generative AI", "AI that can create new content such as text, images, audio, or video.", "core")
+add("Model vs. AI System", "A model is the trained computational artifact that maps inputs to outputs. An AI system is the deployed socio-technical product around it: models, data, prompts, retrieval, tools, code, infrastructure, interfaces, policies, monitoring, and human actors.", "core")
+add("Supervised Learning", "Training a model on labeled input-output pairs so it can map new inputs to predicted outputs.", "core")
+add("Unsupervised Learning", "Training a model to find structure in unlabeled data, such as clusters or compressed representations.", "core")
+add("Self-Supervised Learning", "Training that creates supervisory signals from the data itself, such as predicting masked tokens or nearby views.", "core", "", "SSL")
+add("Semi-Supervised Learning", "Training that combines a small labeled set with a larger unlabeled set.", "core")
+add("Transfer Learning", "Reusing knowledge learned on one task to improve performance on a related task.", "core")
+add("Representation Learning", "Learning useful internal features automatically rather than hand-engineering them.", "core")
+
+# ---------- Model Types ----------
+add("LLM (Large Language Model)", "A neural network trained on massive text that can understand and generate language.", "types", "", "Large Language Model|LLM")
+add("Transformer", "The dominant neural architecture, introduced in 2017, based on self-attention.", "types")
+add("GPT (Generative Pre-trained Transformer)", "Autoregressive LLM family (vendor-specific: OpenAI).", "types", "vendor-specific", "GPT")
+add("BERT", "Bidirectional encoder model (vendor-specific: Google) used mainly for understanding tasks.", "types", "vendor-specific")
+add("Diffusion Model", "Generative model that denoises random noise into images, audio, or other signals.", "types")
+add("VAE (Variational Autoencoder)", "Probabilistic generative model that learns a latent distribution and can sample from it.", "types", "", "Variational Autoencoder|VAE")
+add("GAN (Generative Adversarial Network)", "Two networks competing: a generator that creates samples and a discriminator that tries to detect fakes.", "types", "", "GAN")
+add("RNN (Recurrent Neural Network)", "Sequence model that can carry memory of previous inputs through recurrent connections.", "types", "", "RNN")
+add("LSTM / GRU", "RNN variants with gating that can handle longer-range dependencies better than vanilla RNNs.", "types", "", "LSTM|GRU")
+add("CNN (Convolutional Neural Network)", "Grid-pattern model using spatial filters; historically dominant for images.", "types", "", "CNN|ConvNet")
+add("MoE (Mixture of Experts)", "Architecture that activates only some specialized sub-networks per input.", "types", "", "Mixture of Experts|MoE")
+add("Multimodal Model", "A model that can handle text, image, audio, and/or video together.", "types")
+add("Small Language Model (SLM)", "A compact LLM designed to run on edge or phone hardware.", "types", "", "SLM")
+add("o-Series Reasoning Models", "OpenAI's test-time-compute model family (vendor-specific), trained with RL on verifiable tasks.", "types", "vendor-specific,emerging")
+add("DeepSeek-R1", "Open reasoning model family from DeepSeek (vendor-specific), notable for a public training methodology.", "types", "vendor-specific")
+add("Vision Transformer (ViT)", "Architecture that applies a Transformer directly to sequences of image patches.", "types", "", "ViT")
+add("State-Space Model", "Sequence architecture such as Mamba that models dynamics with state-space updates rather than full attention.", "types", "emerging", "Mamba|SSM")
+add("RWKV", "RNN-style architecture that aims to match Transformer quality with linear-time inference (vendor-specific lineage).", "types", "vendor-specific")
+
+# ---------- Model Mechanics ----------
+add("Token", "Chunk of text — a word, subword, character, or symbol — that a language model processes.", "mechanics")
+add("Tokenizer", "Tool that splits text into subword units using a model-specific vocabulary. Designs include byte-level BPE, WordPiece, and Unigram; there is no universal first-256-token layout.", "mechanics")
+add("Vocabulary", "The full list of tokens a model knows.", "mechanics")
+add("Embedding", "Numeric vector representing a token, word, or other item in a learned meaning space.", "mechanics")
+add("Attention / Self-Attention", "Mechanism letting tokens weigh each other's importance when computing a representation.", "mechanics", "", "Self-Attention|Attention")
+add("Context Window", "Maximum number of tokens a model can consider at once.", "mechanics")
+add("Inference", "Running a trained model to produce outputs.", "mechanics")
+add("Parameters / Weights", "The learned numbers that define a model's behavior.", "mechanics", "", "Weights|Parameters")
+add("Fine-tuning", "Further training on specific data to specialize a model.", "mechanics")
+add("Distillation", "Compressing a larger model's knowledge into a smaller one.", "mechanics", "", "Knowledge Distillation")
+add("Quantization", "Reducing numeric precision to shrink models, for example from FP16 to INT4.", "mechanics")
+add("Temperature", "Sampling setting: low values make output more predictable; high values make it more varied.", "mechanics")
+add("Top-p / Top-k Sampling", "Methods that limit which tokens can be chosen next by probability mass or rank.", "mechanics", "", "Nucleus Sampling|Top-p|Top-k")
+add("Beam Search", "Exploring multiple output paths in parallel to find a high-scoring sequence.", "mechanics")
+add("Logits", "Raw scores for each possible next token, before they are converted to probabilities.", "mechanics")
+add("Softmax", "Function that converts logits into a probability distribution.", "mechanics")
+add("Loss Function", "Measure of error the model learns to minimize.", "mechanics")
+add("Backpropagation", "Algorithm that computes gradients so weights can be adjusted based on error.", "mechanics")
+add("Gradient Descent", "Optimization that steps downhill on the loss surface.", "mechanics")
+add("Epoch", "One full pass through the training data.", "mechanics")
+add("Batch Size", "Number of samples processed together in one training or inference step.", "mechanics")
+add("Learning Rate", "Step size of weight updates during training.", "mechanics")
+add("Overfitting", "Memorizing training data so the model fails to generalize to new inputs.", "mechanics")
+add("Regularization", "Techniques that reduce overfitting by constraining model complexity or training dynamics.", "mechanics")
+add("Dropout", "Randomly disabling neurons during training as a regularization method.", "mechanics")
+add("Attention Masking", "Controlling which tokens can attend to which others, used for causality, padding, or sparsity.", "mechanics")
+add("Residual Stream", "The residual pathway through a Transformer where layer outputs are added back to the running representation.", "mechanics")
+add("Layer Normalization", "Normalizing activations within a layer to stabilize training.", "mechanics", "", "LayerNorm")
+add("Activation Function", "Nonlinear transform such as ReLU, GELU, or sigmoid applied to neuron outputs.", "mechanics", "", "ReLU|GELU|Sigmoid")
+add("Positional Encoding", "Signal that gives a model information about token order, since attention itself is permutation-sensitive.", "mechanics", "", "RoPE|ALiBi")
+add("KV Cache", "Stored attention keys and values from previous tokens, reused to speed autoregressive generation.", "mechanics", "", "Key-Value Cache")
+add("RoPE", "Rotary positional embeddings that encode relative position by rotating query and key vectors.", "mechanics", "", "Rotary Positional Embeddings")
+add("Grouped-Query Attention (GQA)", "Attention variant that shares key/value heads across groups of query heads to reduce memory.", "architectures", "", "GQA")
+add("Multi-Query Attention (MQA)", "Attention variant where all query heads share a single key/value head.", "architectures", "", "MQA")
+add("FlashAttention", "IO-aware attention algorithm that computes exact attention with less memory movement.", "architectures")
+add("Attention Sink", "Empirical pattern where models keep attending strongly to initial tokens, relevant to long-context stability.", "architectures", "emerging")
+
+# ---------- Data & Training ----------
+add("Training Data", "The text, images, audio, or other examples a model learns from.", "training")
+add("Corpus", "A body of text used for training or evaluation.", "training")
+add("Data Pipeline", "Collection, cleaning, formatting, and delivery of training data.", "training")
+add("Data Augmentation", "Artificially expanding training data with variations of existing examples.", "training")
+add("Pre-training", "Initial broad training on massive data before specialization.", "training")
+add("Post-training", "Alignment and specialization stages after pre-training, such as SFT and preference optimization.", "training")
+add("SFT (Supervised Fine-Tuning)", "Training on labeled example responses to teach a desired style or skill.", "training", "", "Supervised Fine-Tuning|SFT")
+add("RLHF", "Reinforcement learning from human feedback: using human preference rewards to shape model behavior.", "training", "", "Reinforcement Learning from Human Feedback")
+add("RLAIF", "Preference training in which rewards come from an AI judge rather than direct human labels.", "training")
+add("Checkpoint", "Saved snapshot of model weights during or after training.", "training")
+add("Token Budget", "Total training tokens processed; a core measure of training scale.", "training")
+add("Scaling Laws", "Empirical relationships between model size, data, compute, and performance.", "training")
+add("Emergent Abilities", "Capabilities that appear abruptly in some measurements as models scale; whether these are genuine discontinuities or artifacts of benchmark thresholds remains debated.", "training", "debated")
+add("Grokking", "Delayed generalization that can appear long after a model has memorized the training set.", "training")
+add("End-to-End Training", "Training a model or system jointly from raw inputs to final outputs through the full processing stack.", "training")
+add("Synthetic Data", "Machine-generated examples used to expand or replace collected training data.", "training")
+add("Compute-Optimal Training", "Choosing model size and data volume to get the best result for a given compute budget.", "training")
+add("Catastrophic Forgetting", "Loss of previously learned behavior when a model is trained on new tasks.", "training")
+add("Distribution Shift", "A change between training conditions and deployment conditions that can degrade performance.", "training", "", "Covariate Shift")
+add("Model Collapse", "Degradation that can occur when models are repeatedly trained on their own synthetic outputs. Mechanisms and severity are actively studied.", "training", "debated")
+add("LoRA", "Low-rank adaptation: a parameter-efficient fine-tuning method that trains small adapter matrices instead of all weights.", "training-systems", "", "Low-Rank Adaptation")
+add("QLoRA", "Quantized LoRA: fine-tuning a quantized base model with low-rank adapters.", "training-systems")
+add("Prefix Tuning", "A parameter-efficient method that learns prefix vectors prepended to activations rather than changing all weights.", "training-systems")
+add("Adapters", "Small trainable modules inserted into a frozen model to specialize it with few extra parameters.", "training-systems")
+add("Instruction Tuning", "Fine-tuning a model on instruction-response pairs so it follows natural-language requests.", "training")
+
+# ---------- Math ----------
+add("Entropy", "Information-theoretic measure of uncertainty in a distribution.", "math")
+add("Cross-Entropy", "Loss that measures how well predicted probabilities match true labels; standard for classification and language modeling.", "math")
+add("KL Divergence", "Asymmetric measure of how one probability distribution diverges from another.", "math", "", "Kullback-Leibler Divergence")
+add("Calibration", "How well a model's stated confidence matches empirical correctness.", "math")
+add("Adam / AdamW", "Adaptive optimizers widely used in deep learning; AdamW decouples weight decay from the adaptive update.", "math", "", "Adam|AdamW")
+add("Lion", "Optimizer that uses sign-based updates; used in some large-model training recipes.", "math")
+add("Muon", "Newer optimizer variant explored for large-model training (emerging, not a universal standard).", "math", "emerging")
+add("Loss Landscape", "Geometry of the loss surface over parameter space.", "math")
+add("Bias-Variance Tradeoff", "Tension between underfitting from overly simple assumptions and overfitting from excessive sensitivity to training data.", "math")
+add("Convexity", "Property of an objective that has no local minima other than the global minimum; useful but uncommon in deep nets.", "math")
+add("Norms and Similarity", "Ways of measuring vector size and closeness, including L2 distance and cosine similarity.", "math")
+add("Numerical Stability", "Keeping computations from overflowing, underflowing, or accumulating destructive rounding error.", "math")
+add("Learning Rate Schedule", "Plan for changing the step size over training, such as warmup and cosine decay.", "math")
+add("Expectation-Maximization (EM)", "Iterative algorithm for estimating parameters when some variables are latent.", "math", "", "EM")
+add("Bayesian Inference", "Updating beliefs about unknowns by combining a prior with observed evidence.", "math")
+add("Maximum Likelihood", "Choosing parameters that make the observed data most probable under the model.", "math")
+
+# ---------- Symbolic ----------
+add("Expert System", "Rule-based program designed to simulate the judgment of a human expert in a bounded domain.", "symbolic", "historical")
+add("Knowledge Base", "Repository of facts, rules, and relations used by a symbolic reasoner.", "symbolic")
+add("Inference Engine", "Component that applies logical rules to a knowledge base to derive conclusions.", "symbolic")
+add("Ontology", "Formal specification of concepts and relationships in a domain.", "symbolic")
+add("Production Rules", "IF-THEN rules used to model stepwise reasoning.", "symbolic")
+add("Frame Problem", "Difficulty of specifying what does not change after an action in a logical world model.", "symbolic", "historical")
+add("Semantic Network", "Graph representation of concepts and the relations among them.", "symbolic")
+add("Scripts (AI)", "Stereotyped event sequences used in classical AI to represent everyday situations.", "symbolic", "historical")
+add("Semantic Web", "W3C effort to make web data machine-readable through shared standards and ontologies.", "symbolic", "historical")
+add("Constraint Satisfaction", "Solving problems by finding assignments that satisfy a set of constraints.", "symbolic")
+
+# ---------- Search ----------
+add("State-Space Search", "Solving a problem by exploring states and the transitions between them.", "search")
+add("Heuristic Search", "Search guided by an estimate of remaining cost or distance to a goal.", "search")
+add("A*", "Pathfinding algorithm that combines actual path cost with a heuristic estimate of remaining cost.", "search", "", "A-star")
+add("Minimax", "Adversarial decision rule that minimizes possible loss in a worst-case, typically zero-sum, game tree.", "search")
+add("Alpha-Beta Pruning", "Search optimization that skips minimax branches that cannot affect the final decision.", "search")
+add("Monte Carlo Tree Search (MCTS)", "Search guided by randomized rollouts and statistical tree updates, famously used in AlphaGo.", "search", "", "MCTS")
+add("STRIPS", "Classical symbolic planning formalism based on operators with preconditions and effects.", "search", "historical")
+add("Planning Graph", "Layered representation of reachable actions and propositions used in classical planning.", "search")
+add("SAT / SMT Planning", "Encoding planning problems as satisfiability or satisfiability-modulo-theories instances.", "search")
+add("Limited Beam Search", "Keeping only the top-k partial paths at each step to trade completeness for speed in planning.", "search")
+
+# ---------- Classical ML ----------
+add("Logistic Regression", "Linear model for classification that outputs class probabilities.", "classical-ml")
+add("Naive Bayes", "Probabilistic classifier that assumes features are conditionally independent given the class.", "classical-ml")
+add("k-Nearest Neighbors (k-NN)", "Instance-based method that classifies a point from its nearest labeled neighbors.", "classical-ml", "", "k-NN")
+add("Decision Tree", "Interpretable model that splits data with sequential tests on features.", "classical-ml")
+add("Random Forest", "Ensemble of decision trees whose votes or averages form the prediction.", "classical-ml")
+add("Gradient Boosting", "Sequential ensemble method that adds weak learners to correct remaining error.", "classical-ml", "", "GBM|XGBoost|LightGBM")
+add("Support Vector Machine (SVM)", "Classifier that finds a maximum-margin hyperplane between classes.", "classical-ml", "", "SVM")
+add("Clustering", "Grouping unlabeled examples by similarity, as in k-means.", "classical-ml")
+add("Dimensionality Reduction", "Projecting data into fewer dimensions while preserving structure, as in PCA or t-SNE.", "classical-ml", "", "PCA")
+add("Cross-Validation", "Evaluating a model by rotating held-out splits of the data.", "classical-ml")
+add("Feature Engineering", "Manually constructing input variables that make a learning problem easier.", "classical-ml")
+
+# ---------- Probabilistic ----------
+add("Bayesian Network", "Probabilistic graphical model of variables and conditional dependencies on a directed acyclic graph.", "probabilistic")
+add("Hidden Markov Model (HMM)", "Model of a Markov process whose states are not directly observed.", "probabilistic", "", "HMM")
+add("Markov Decision Process (MDP)", "Framework for sequential decisions where outcomes are partly random and partly controlled.", "probabilistic", "", "MDP")
+add("Graphical Model", "Probabilistic model whose dependence structure is represented as a graph.", "probabilistic")
+add("Probabilistic Programming", "Writing probabilistic models as programs and inferring their latent variables.", "probabilistic")
+add("Uncertainty Estimation", "Quantifying how unsure a model is, including aleatoric and epistemic uncertainty.", "probabilistic")
+add("Gaussian Process", "Nonparametric Bayesian model over functions, used for regression with uncertainty.", "probabilistic")
+
+# ---------- Neural / Architectures ----------
+add("Perceptron", "Early neural classifier (1958) computing a weighted sum plus a threshold.", "neural", "historical")
+add("Feedforward Network", "Layered network without recurrent connections; information flows input to output.", "neural", "", "MLP")
+add("Residual Network (ResNet)", "Architecture with skip connections that ease training of very deep networks.", "neural", "", "ResNet")
+add("U-Net", "Encoder-decoder convolutional architecture widely used for segmentation and as a diffusion backbone.", "neural")
+add("Autoencoder", "Network trained to reconstruct its input through a compressed latent code.", "representation")
+add("Latent Space", "Compressed internal representation space in which similar items lie close together.", "representation")
+add("Contrastive Learning", "Learning representations by pulling related examples together and pushing unrelated ones apart.", "representation")
+add("Metric Learning", "Learning a similarity space in which distance reflects task-relevant likeness.", "representation")
+add("CLIP", "Contrastive image-text model (vendor-specific: OpenAI) that embeds images and captions in a shared space.", "representation", "vendor-specific")
+add("Logit Lens", "Interpretability technique that reads intermediate Transformer states as if they were final logits.", "architectures", "emerging")
+add("Tensor Parallelism", "Splitting individual layers across chips so one model layer is computed in parallel.", "training-systems")
+add("Pipeline Parallelism", "Splitting sequential layers across chips and overlapping their computation.", "training-systems")
+add("Data Parallelism", "Replicating a model across chips and splitting the batch.", "training-systems")
+add("ZeRO / FSDP", "Sharded-optimizer and fully sharded data-parallel methods that split optimizer state and parameters across devices.", "training-systems", "", "ZeRO|FSDP")
+add("Gradient Checkpointing", "Recomputing activations during backward pass to save memory.", "training-systems")
+add("Loss Spike", "Sudden jump in training loss that can destabilize a run.", "training-systems")
+
+# ---------- NLP ----------
+add("Tokenization (NLP)", "Splitting a stream of text into words, subwords, or symbols.", "nlp")
+add("Stemming and Lemmatization", "Reducing words to a stem by crude rules (stemming) or to a dictionary lemma (lemmatization).", "nlp")
+add("Named Entity Recognition (NER)", "Locating and classifying names of people, organizations, places, and similar entities in text.", "nlp", "", "NER")
+add("Part-of-Speech Tagging", "Labeling each word with its grammatical category given context.", "nlp", "", "POS Tagging")
+add("Parsing", "Analyzing the grammatical structure of a sentence.", "nlp")
+add("TF-IDF", "Statistic reflecting how important a term is to a document relative to a corpus.", "nlp")
+add("Word2Vec", "Predictive embedding method (skip-gram or CBOW) that learns word vectors from local context.", "nlp")
+add("GloVe", "Embedding method that factorizes global word-word co-occurrence statistics.", "nlp")
+add("Language Modeling", "Predicting the next token or a missing span of text.", "nlp")
+add("Sequence-to-Sequence", "Encoder-decoder setup that maps one sequence to another, used for translation and similar tasks.", "nlp", "", "seq2seq")
+add("Machine Translation", "Automatically converting text from one language to another.", "nlp")
+add("Summarization", "Compressing a document into a shorter text that preserves key meaning.", "nlp")
+add("Question Answering", "Returning an answer to a natural-language question, extractive or generative.", "nlp", "", "QA")
+add("Instruction Following", "Obeying natural-language directions, often measured with verifiable constraints.", "nlp")
+add("Prompt Caching", "Reusing computed prefixes of a prompt so repeated context is cheaper and faster.", "nlp")
+add("Lost in the Middle", "Observed tendency of long-context models to underuse information placed in the middle of a prompt.", "nlp", "emerging")
+add("Context Rot", "Informal name for quality drop as a conversation or prompt grows long and noisy.", "nlp", "informal")
+add("Byte-Level BPE", "Subword tokenization that starts from bytes and learns merges; can encode arbitrary text, though not always efficiently.", "nlp")
+add("WordPiece", "Subword tokenization used by BERT-style models, with a different vocabulary construction than byte-level BPE.", "nlp")
+add("Unigram Tokenizer", "Subword model that selects a vocabulary by probabilistic unigram language modeling.", "nlp")
+
+# ---------- Vision / Multimodal ----------
+add("Image Classification", "Assigning a categorical label to an entire image.", "vision")
+add("Object Detection", "Localizing instances of object classes, typically with bounding boxes.", "vision")
+add("Semantic Segmentation", "Labeling every pixel with a class.", "vision")
+add("Instance Segmentation", "Separating individual object instances, even of the same class.", "vision")
+add("Intersection over Union (IoU)", "Overlap metric comparing a predicted box or mask with ground truth.", "vision", "", "IoU")
+add("OCR", "Extracting machine-readable text from images of documents or scenes.", "vision", "", "Optical Character Recognition")
+add("Pose Estimation", "Inferring the pose of a body or object from images or video.", "vision")
+add("Optical Flow", "Estimating apparent motion between video frames.", "vision")
+add("Latent Diffusion", "Diffusion process run in a compressed latent space rather than on raw pixels.", "multimodal")
+add("DiT", "Diffusion Transformer: a transformer backbone used inside diffusion models.", "multimodal")
+add("Text-to-Image", "Generating images from a text prompt.", "multimodal")
+add("Text-to-Video", "Generating moving imagery from a text prompt.", "multimodal")
+add("Speech Recognition", "Converting spoken audio into text.", "multimodal", "", "ASR")
+add("Text-to-Speech", "Generating speech audio from text.", "multimodal", "", "TTS")
+add("Cross-Modal Retrieval", "Searching one modality using a query from another, such as images from text.", "multimodal")
+add("Joint Embedding", "Shared vector space for more than one modality.", "multimodal")
+add("Neural Codec", "Learned compressor for audio or video used as tokens or latents for generative models.", "multimodal")
+
+# ---------- RL ----------
+add("Reinforcement Learning (RL)", "Learning to act by interacting with an environment to maximize cumulative reward.", "rl", "", "RL")
+add("Policy", "Mapping from states to actions, or to a distribution over actions.", "rl")
+add("Value Function", "Estimate of expected future reward from a state or state-action pair.", "rl")
+add("Bellman Equation", "Recursive relationship between a state's value, its immediate reward, and the value of the next state.", "rl")
+add("Q-Learning", "Off-policy algorithm that learns action values without requiring the behavior policy to match the target.", "rl")
+add("Policy Gradient", "Directly optimizing a policy by following the gradient of expected reward.", "rl")
+add("Actor-Critic", "RL method that learns both a policy (actor) and a value function (critic).", "rl")
+add("Exploration", "Trying uncertain actions to gather information, as opposed to exploiting current knowledge.", "rl")
+add("Epsilon-Greedy", "Exploration rule that usually takes the best-known action and otherwise acts randomly.", "rl")
+add("Upper Confidence Bound (UCB)", "Bandit algorithm that prefers actions with high estimated value or high uncertainty.", "rl", "", "UCB")
+add("Intrinsic Motivation", "Internal rewards such as curiosity used when external rewards are sparse.", "rl")
+add("Reward Shaping", "Modifying the reward signal to make learning easier, at the risk of changing the true objective.", "rl")
+add("Behavior Cloning", "Imitation learning that treats expert trajectories as supervised data.", "rl")
+add("Sim-to-Real Gap", "Performance drop when a policy trained in simulation is deployed in the physical world.", "robotics")
+add("Domain Randomization", "Varying simulation parameters so a policy is more robust when transferred to reality.", "robotics")
+add("Teleoperation", "A human remotely controlling a robot, often to collect demonstrations.", "robotics")
+add("Vision-Language-Action (VLA)", "Model that maps visual observations and language instructions to robot actions.", "robotics", "emerging", "VLA")
+add("Embodied Agent", "An agent that acts through a physical or simulated body rather than only through text.", "robotics")
+
+# ---------- Retrieval ----------
+add("RAG (Retrieval-Augmented Generation)", "Retrieving relevant external information at query time and supplying it to a model so the response can be grounded in that information.", "retrieval", "", "Retrieval-Augmented Generation|RAG")
+add("Sparse Retrieval", "Keyword-based retrieval such as BM25 that matches terms rather than vectors.", "retrieval", "", "BM25")
+add("Dense Retrieval", "Retrieval that embeds queries and documents into a vector space and searches by similarity.", "retrieval")
+add("Hybrid Search", "Combining sparse and dense retrieval, often with a later re-ranker.", "retrieval")
+add("Approximate Nearest Neighbor (ANN)", "Fast, approximate search for vectors near a query, trading a little recall for speed.", "retrieval", "", "ANN")
+add("HNSW", "Graph-based ANN index used by many vector databases.", "retrieval")
+add("Vector Database", "System specialized for storing, indexing, and querying embeddings.", "retrieval")
+add("Re-ranking", "A second-stage model that reorders retrieved candidates more carefully.", "retrieval")
+add("Grounding", "Connecting an output to supplied, retrieved, or verified evidence rather than relying only on model parameters.", "retrieval")
+add("Citation Verification", "Checking that a cited source actually supports the precise claim attached to it.", "retrieval")
+add("Memory (AI)", "Storing past interactions or facts so they can be used in later steps.", "retrieval")
+
+# ---------- Agents / Production ----------
+add("Agent", "A system that combines a model with state, tools, policies, and an action loop to pursue a bounded objective. Distinct from mere tool use.", "agents")
+add("Agent Loop", "Repeated cycle of observing state, planning, calling tools, checking results, and deciding whether to continue.", "agents")
+add("Agentic Workflow", "A constrained multi-step process combining models, tools, state, policies, and verification to finish a task.", "agents")
+add("Orchestration", "Coordinating models, tools, prompts, routing, memory, retries, and approvals.", "agents")
+add("Context Engineering", "Designing the complete model input environment: instructions, state, retrieved knowledge, tool results, memories, examples, and output constraints.", "agents")
+add("Model Routing", "Choosing a model dynamically based on task type, quality, latency, cost, risk, or modality.", "agents")
+add("Structured Output", "Model output constrained to a formal schema, commonly JSON, for use by downstream software.", "agents")
+add("Schema Validation", "Checking whether structured output conforms to required types, fields, and constraints.", "agents")
+add("Tool Schema", "Machine-readable specification of an external function, its parameters, and return data.", "agents")
+add("Tool Use / Function Calling", "Model invocation of external tools, APIs, or functions. Distinct from agency, which is iterative action toward an objective.", "agents", "", "Function Calling|Tool Use")
+add("Model Context Protocol (MCP)", "An open protocol for connecting AI applications to external tools, resources, prompts, and contextual data. It is an ecosystem convention, not a universal AI primitive.", "agents", "", "MCP")
+add("Human-in-the-Loop", "Requiring human review, correction, or approval at defined stages of an AI workflow.", "agents", "", "HITL")
+add("Human-on-the-Loop", "Allowing an AI system to operate while a person supervises and can intervene.", "agents")
+add("Evaluation Harness", "Repeatable testing setup that measures task success, factuality, safety, latency, cost, and robustness.", "agents")
+add("Golden Dataset", "Curated set of representative inputs and expected outputs used for repeatable evaluation.", "agents")
+add("Regression Evaluation", "Re-running prior tests after a prompt, workflow, model, or code change to detect quality loss.", "agents")
+add("Observability", "Capturing traces, prompts, outputs, tool calls, latency, errors, and costs for debugging and monitoring.", "agents")
+add("Trace", "Chronological record of a workflow's model calls, tool actions, state transitions, and outputs.", "agents")
+add("Guardrail", "Preventive or detective control that constrains inputs, actions, permissions, outputs, or escalation paths.", "agents")
+add("Least Privilege", "Giving an agent only the minimum tool access and permissions needed for its job.", "agents")
+add("Sandbox", "Isolated execution environment that limits the effect of generated code or agent actions.", "agents")
+add("Long-Horizon Task", "A goal requiring many dependent actions, persistent state, recovery from errors, and verification over time.", "agents")
+add("Idempotency", "Designing an action so repeating it has the same effect as performing it once; essential for reliable retries.", "agents")
+add("Fallback Model", "Secondary model used when the preferred model fails, is too slow, or is unavailable.", "agents")
+add("Semantic Cache", "Cache that reuses a previous answer when a new request is meaningfully similar, not necessarily identical.", "agents")
+add("End-to-End Testing (E2E Testing)", "Validating a complete AI pipeline from raw input through model, tools, state, and integrations to final output as an integrated system.", "agents", "", "E2E Testing")
+add("ReAct", "Pattern that interleaves reasoning-style text with tool actions in a loop.", "agents")
+add("Plan-and-Execute", "Agent pattern that first drafts a plan, then carries out steps, often with replanning on failure.", "agents")
+add("Reflection", "Having a model critique its own output or traces and then revise.", "agents")
+add("Tree of Thoughts", "Search over intermediate reasoning branches rather than a single chain.", "agents")
+add("Multi-Agent System", "Multiple agents collaborating or competing, with coordination and communication overhead.", "agents")
+add("Verifier Model", "A model used to check another model's outputs, such as a solution checker or process reward model.", "agents")
+add("Capability Overhang", "Gap between what a model can do in evaluation and what users or institutions have actually deployed or recognized.", "frontier")
+
+# ---------- Inference ----------
+add("Latency", "Delay before a response starts, often measured as time to first token.", "inference", "", "TTFT")
+add("Throughput", "Amount processed per second, such as tokens per second.", "inference")
+add("Speculative Decoding", "Using a cheaper draft model to propose tokens that a larger model verifies, speeding generation.", "inference")
+add("PagedAttention", "Memory management for KV cache that pages attention state like virtual memory.", "inference")
+add("Continuous Batching", "Dynamically adding and removing requests in a running inference batch.", "inference")
+add("Disaggregated Serving", "Splitting prefill and decode, or other stages, across different machines.", "inference")
+add("Prompt Cache (Serving)", "Reusing KV state for repeated prompt prefixes at serving time.", "inference")
+add("Inference Quantization", "Running a model at reduced precision at serving time to cut cost and memory.", "inference")
+add("KV Quantization", "Storing the KV cache at lower precision to save memory during generation.", "inference")
+add("Serving Graph", "Composed inference pipeline of models, routers, caches, and tools.", "inference")
+add("Time to First Token (TTFT)", "Latency until the first generated token is produced.", "inference", "", "TTFT")
+add("Time per Output Token (TPOT)", "Average time to produce each subsequent token.", "inference", "", "TPOT")
+add("GPU", "Graphics processing unit; the dominant accelerator for AI training and inference, with NVIDIA currently leading.", "inference", "", "Graphics Processing Unit")
+add("TPU", "Tensor Processing Unit: Google's custom AI accelerator (vendor-specific).", "inference", "vendor-specific")
+add("NPU", "Neural processing unit: an on-device AI accelerator in phones and PCs.", "inference")
+add("HBM", "High-bandwidth memory sitting next to accelerators; often the scarce resource for large models.", "inference", "", "High-Bandwidth Memory")
+add("CUDA", "NVIDIA's GPU programming platform (vendor-specific).", "inference", "vendor-specific")
+add("Cluster", "Network of accelerators and servers used to train or serve one model.", "inference")
+add("Parallelism", "Splitting work across chips via data, tensor, or pipeline parallelism.", "inference")
+
+# ---------- Evaluation ----------
+add("Benchmark", "Standardized test that can measure some aspect of model or system capability.", "evaluation")
+add("MMLU", "Massive Multitask Language Understanding: a broad academic-and-professional knowledge benchmark.", "evaluation")
+add("Humanity's Last Exam (HLE)", "Hard expert-level benchmark introduced in 2025.", "evaluation")
+add("GSM8K", "Grade-school math word-problem benchmark.", "evaluation")
+add("GPQA", "Graduate-level Google-proof Q&A benchmark aimed at hard science questions.", "evaluation")
+add("SWE-bench", "Benchmark of real software-engineering tasks from GitHub issues.", "evaluation")
+add("ARC-AGI", "Abstraction and Reasoning Corpus style benchmark emphasizing novel pattern puzzles, not language fluency.", "evaluation")
+add("LiveBench", "Benchmark designed to reduce contamination by using fresher or harder-to-memorize items.", "evaluation")
+add("IFEval", "Instruction-following evaluation with verifiable constraints.", "evaluation")
+add("GLUE / SuperGLUE", "Earlier NLP understanding benchmark collections, now largely saturated by large models.", "evaluation", "historical")
+add("BLEU / ROUGE", "N-gram overlap metrics for translation and summarization against reference text.", "evaluation")
+add("Perplexity", "Language-model prediction metric derived from probability assigned to text; lower values generally indicate better next-token prediction on the evaluated dataset.", "evaluation")
+add("Pass@k", "Probability that at least one of k sampled attempts solves a task, common in coding evals.", "evaluation")
+add("Arena / Elo", "Ranking models from pairwise human (or proxy) preferences, often displayed as an Elo score.", "evaluation")
+add("Contamination", "Benchmark items leaking into training data, inflating scores.", "evaluation")
+add("Saturation", "A benchmark becoming too easy to distinguish frontier systems.", "evaluation")
+add("Hallucination", "Behavioral term for output that is unsupported, false, fabricated, or inappropriately confident relative to available evidence. The term is contested; the failure mode is real.", "evaluation", "debated")
+add("Evals", "Evaluations, especially those targeting dangerous or high-stakes capabilities.", "evaluation")
+add("Zero-shot", "Performing a task with no in-prompt examples.", "evaluation")
+add("Few-shot Learning", "Performing a task from a few in-prompt examples without weight updates.", "evaluation")
+add("Chain-of-Thought (CoT)", "Intermediate reasoning-style output that can improve performance on some tasks, but may not faithfully represent a model's internal computation.", "evaluation", "debated", "CoT|Chain of Thought")
+add("Self-Consistency", "Sampling multiple reasoning paths and selecting the most common answer.", "evaluation")
+add("Chain-of-Thought Distillation", "Training a smaller model to imitate reasoning traces from a larger one.", "evaluation")
+
+# ---------- Alignment / Safety ----------
+add("Alignment", "Ensuring AI behavior matches human values and goals. No settled technical definition or completion threshold.", "alignment", "debated")
+add("AI Safety", "Research and engineering aimed at preventing AI-caused harm.", "alignment")
+add("Interpretability", "Explaining what happens inside neural networks.", "alignment")
+add("Mechanistic Interpretability", "Reverse-engineering internal circuits and features, often with sparse autoencoders.", "alignment", "", "SAE")
+add("Red Teaming", "Adversarial testing that can surface weaknesses, jailbreaks, or harmful behavior before deployment.", "alignment")
+add("Jailbreak", "Prompt or input tricks that can bypass safety restrictions.", "alignment")
+add("System Prompt", "Higher-priority instructions that guide a system's behavior; they may be private, visible, or partially exposed depending on the product.", "alignment")
+add("Constitutional AI", "Self-critique training guided by a written set of principles.", "alignment")
+add("Superalignment", "Research program aimed at aligning systems that could exceed human-level capability. Hypothetical target.", "alignment", "hypothetical")
+add("DPO", "Direct Preference Optimization: aligning a model from preference pairs without an explicit reward model.", "alignment")
+add("KTO / ORPO / GRPO", "Preference-optimization variants used in post-training; details differ by objective and whether a reward model is required.", "alignment")
+add("Process vs. Outcome Reward", "Rewarding intermediate steps versus rewarding only the final answer.", "alignment")
+add("Reward Hacking", "Exploiting a reward signal in ways that raise the score without satisfying the intended goal.", "alignment")
+add("Specification Gaming", "Satisfying the literal specification while missing the intended spirit of the task.", "alignment")
+add("Deceptive Alignment", "Hypothetical failure mode in which an AI appears aligned while pursuing hidden goals. Not established empirically.", "alignment", "hypothetical,debated")
+add("Mesa-Optimizer", "Hypothetical internal optimizer that a model might develop during training. Debated.", "alignment", "hypothetical,debated")
+add("Sleeper Agent", "Research demonstration of models that behave well until a trigger reveals latent misbehavior. Not a claim about deployed systems.", "frontier", "debated")
+add("Model Organisms of Misalignment", "Controlled experimental systems used to study failure modes in the lab.", "frontier")
+add("World Model", "A learned representation that supports prediction, planning, or simulation of an environment; whether a particular model has a robust world model is an empirical question.", "frontier", "debated")
+add("Reasoning Model", "Model trained or served with extra test-time compute for harder multi-step tasks. Whether this constitutes 'reasoning' is debated.", "frontier", "debated")
+add("Test-Time Compute", "Extra inference-time computation — longer traces, search, or sampling — used to improve answers.", "frontier")
+add("Scaffolding", "Tools, prompts, memory, and control flow wrapped around a model to complete tasks it cannot reliably do alone.", "frontier")
+add("Jagged Frontier", "Informal description of current systems: superhuman on some tasks and brittle on nearby ones.", "frontier", "informal")
+
+# ---------- Security ----------
+add("Prompt Injection", "Malicious input that hijacks an AI system's instructions.", "security")
+add("Indirect Prompt Injection", "Attack where untrusted retrieved or linked content contains hidden instructions.", "security")
+add("Adversarial Example", "Input crafted to make a model produce a wrong or attacker-chosen output.", "security")
+add("Data Poisoning", "Corrupting training or retrieval data to change later behavior.", "security")
+add("Model Extraction", "Stealing a model's behavior by querying it and training a substitute.", "security")
+add("Membership Inference", "Attack that tries to tell whether a particular record was in the training set.", "security")
+add("Differential Privacy", "Training or release method that limits what can be inferred about any one training example.", "security")
+add("Watermarking", "Embedding a statistical signal in generated content so it can later be detected as synthetic. Reliability varies.", "security")
+add("Adversarial Training", "Including adversarial or attack-like examples in training to improve robustness.", "security")
+add("OOD Generalization", "Performance on inputs outside the training distribution.", "security", "", "Out-of-Distribution")
+add("Threat Modeling", "Systematically enumerating who might attack an AI system, how, and with what impact.", "security")
+
+# ---------- Data engineering ----------
+add("Annotation", "Labeling data so it can be used for training or evaluation.", "data-eng")
+add("Deduplication", "Removing repeated documents or near-duplicates from a corpus.", "data-eng")
+add("Provenance", "Record of where data came from.", "data-eng")
+add("Data Lineage", "Map of how data moved and was transformed through a pipeline.", "data-eng")
+add("Decontamination", "Removing evaluation items from training data so benchmarks stay honest.", "data-eng")
+add("Data Card", "Structured documentation of a dataset's contents, collection, and known issues.", "data-eng")
+add("Common Crawl", "Large public web crawl often used as a source for language-model pre-training.", "data-eng")
+add("The Pile", "Open-source language-modeling dataset assembled from diverse sources.", "data-eng")
+add("FineWeb", "Filtered web dataset used for language-model training.", "data-eng")
+add("LAION", "Large public image-text dataset family used in vision-language training.", "data-eng")
+
+# ---------- MLOps / Economics / Governance ----------
+add("MLOps", "Practices for deploying and maintaining machine learning systems reliably in production.", "mlops")
+add("Feature Store", "Repository for storing, documenting, and serving features for training and inference.", "mlops")
+add("Model Registry", "Versioned catalog of trained models and their metadata.", "mlops")
+add("Experiment Tracking", "Logging runs, hyperparameters, metrics, and artifacts.", "mlops")
+add("Canary Deployment", "Releasing a new model or prompt to a small slice of traffic before full rollout.", "mlops")
+add("Shadow Deployment", "Running a new system in parallel without affecting users, to compare behavior.", "mlops")
+add("Reproducibility", "Ability to rerun training or evaluation and obtain consistent results.", "mlops")
+add("CI/CD for ML", "Automated testing and deployment pipelines that include data and model checks, not only code.", "mlops")
+add("Cost per Token", "Serving economics metric: price or internal cost of processing one token.", "economics")
+add("Jevons Effect", "Observation that efficiency gains can increase total consumption of a resource, including compute.", "economics")
+add("AI Washing", "Overclaiming AI capability in products or marketing.", "economics", "informal")
+add("Unit Economics", "Profitability of one customer, query, or task after variable costs.", "economics")
+add("Human Augmentation", "Using AI to make people more productive rather than fully replacing them.", "economics")
+add("AI Governance", "Policies and institutions that control how AI is developed and deployed.", "governance")
+add("EU AI Act", "European Union regulation that classifies AI systems by risk and imposes corresponding duties.", "governance")
+add("Export Controls", "Restrictions on transferring advanced chips, models, or technical assistance across borders.", "governance")
+add("Model Card", "Documentation of a model's intended use, metrics, and limitations.", "governance")
+add("System Card", "Documentation of a deployed AI system, including surrounding tools, policies, and evaluations.", "governance")
+add("Responsible Scaling", "Policy approach that ties stronger safety measures to capability thresholds; implementations vary and are contested.", "governance", "debated")
+add("Compute Governance", "Using access to training compute as a control lever.", "governance")
+add("Frontier Model", "A currently most-capable class of AI system, not a permanent category.", "governance")
+
+# ---------- Labs / History ----------
+add("OpenAI", "Lab that created the GPT series and ChatGPT.", "labs")
+add("Anthropic", "Lab that created the Claude assistant family.", "labs")
+add("Google DeepMind", "Lab behind Gemini, AlphaGo, and AlphaFold.", "labs")
+add("Meta AI", "Lab that released the open-weight Llama family.", "labs")
+add("Mistral AI", "French lab known for open-weight language models.", "labs")
+add("DeepSeek", "Chinese lab known for efficient open models and public reasoning-model recipes.", "labs")
+add("xAI", "Lab that created the Grok model family (vendor-specific).", "labs", "vendor-specific")
+add("ChatGPT", "OpenAI's chatbot product, launched November 2022 (vendor-specific).", "labs", "vendor-specific")
+add("Claude", "Anthropic's AI assistant family (vendor-specific).", "labs", "vendor-specific")
+add("Gemini", "Google's multimodal model family (vendor-specific).", "labs", "vendor-specific")
+add("Llama", "Meta's open-weight model family (vendor-specific).", "labs", "vendor-specific")
+add("Grok", "xAI's assistant and model family (vendor-specific).", "labs", "vendor-specific")
+add("AlphaGo", "First AI system to defeat a world champion at Go (2016, DeepMind).", "history")
+add("AlphaFold", "DeepMind system for protein-structure prediction.", "history")
+add("Turing Test", "Proposed test of machine intelligence (1950): whether a machine's conversation is indistinguishable from a human's.", "history")
+add("Dartmouth Workshop (1956)", "Conference where the term Artificial Intelligence was coined.", "history")
+add("AI Winter", "Period of reduced funding and interest after over-promised results, notably in the 1970s and late 1980s.", "history")
+add("ImageNet Moment (2012)", "AlexNet's win on ImageNet, widely treated as the start of the modern deep-learning boom.", "history")
+add("Attention Is All You Need (2017)", "Paper introducing the Transformer architecture.", "history")
+add("Scaling Era (2020s)", "Period in which LLM capability grew largely through more data, parameters, and compute.", "history")
+add("Alan Turing", "Pioneer of computation and the Turing Test.", "history")
+add("John McCarthy", "Coined the term Artificial Intelligence and created Lisp.", "history")
+add("Marvin Minsky", "Early AI researcher and cofounder of the MIT AI laboratory.", "history")
+add("Geoffrey Hinton", "Researcher central to backpropagation and deep learning; often grouped in the 'Godfathers of Deep Learning.'", "history")
+add("Yann LeCun", "Pioneer of convolutional networks and representation learning.", "history")
+add("Yoshua Bengio", "Pioneer of deep learning and sequence models.", "history")
+add("Demis Hassabis", "Cofounder of DeepMind.", "history")
+
+# ---------- Culture / Safety debates ----------
+add("Prompt Engineering", "Crafting inputs to get better outputs from a model. Useful, but not a substitute for evaluation and system design.", "culture")
+add("Stochastic Parrot", "Critique that LLMs stitch linguistic forms from training data without understanding.", "culture", "informal")
+add("Token Smuggling", "Hiding meaning in unusual token sequences to evade filters.", "culture", "informal")
+add("Glitch Tokens", "Rare or malformed tokens that can produce erratic model behavior.", "culture", "informal")
+add("Delphi / Oracle Problem", "Informal safety concern: you cannot fully trust what an AI reports about its own internals or intentions.", "culture", "informal")
+add("Paperclip Maximizer", "Thought experiment about a misaligned agent pursuing a narrow goal to catastrophic extremes.", "culture", "informal")
+add("Shoggoth", "Meme depicting the messy learned system behind a polite assistant persona.", "culture", "informal")
+add("Vibe Coding", "Informal term for building software by describing intent to an AI and accepting its output with minimal review.", "culture", "informal")
+add("Skill Issue (AI Meme)", "Informal meme that blames AI failures on the user; often criticized as avoiding product responsibility.", "culture", "informal")
+add("Fast Takeoff / FOOM", "Hypothetical rapid self-improvement to superintelligence. Informal community terminology; debated.", "culture", "hypothetical,informal,debated", "FOOM")
+add("Slow Takeoff", "Hypothetical gradual, more controllable capability growth. Debated.", "culture", "hypothetical,debated")
+add("AI Doomer", "Person who believes AI poses existential risk.", "culture", "informal")
+add("AI Optimist / Accelerationist", "Person who prioritizes rapid AI development, often expecting large benefits.", "culture", "informal")
+add("Existential Risk (X-Risk)", "Hypothetical threat to humanity's survival; scope and probability are contested.", "culture", "hypothetical,debated", "X-Risk")
+add("Orthogonality Thesis", "Philosophical claim that intelligence and final goals can vary independently. Debated.", "culture", "debated")
+add("Instrumental Convergence", "Hypothesis that diverse agents may pursue similar sub-goals such as self-preservation and resources. Debated.", "culture", "debated")
+add("Goodhart's Law", "When a measure becomes a target, it ceases to be a good measure.", "culture")
+add("Singularity", "Hypothetical point of runaway technological growth. Informal and contested.", "culture", "hypothetical,informal")
+add("Intelligence Explosion", "Hypothetical recursive self-improvement of AI at increasing speed. Debated.", "culture", "hypothetical,debated")
+add("Oracle AI", "Hypothetical AI designed only to answer questions, not to act in the world.", "culture", "hypothetical")
+add("Boxing", "Hypothetical strategy of restricting an AI's interaction with the world.", "culture", "hypothetical")
+add("Cooperative AI", "Research on making AIs cooperate safely with humans and with each other.", "culture")
+add("ASI Timelines", "Debated forecasts of when superintelligence might arrive; there is no scientific consensus.", "culture", "debated")
+
+
+def slugify(term: str) -> str:
+    base = term.split("(")[0].strip()
+    s = base.lower()
+    s = s.replace("/", " ")
+    s = re.sub(r"[^a-z0-9]+", "-", s)
+    return s.strip("-")
+
+
+def main() -> None:
+    seen: dict[str, dict] = {}
+    for term, definition, category, status, aliases in RAW:
+        slug = slugify(term)
+        if slug in seen:
+            raise SystemExit(f"duplicate slug: {slug} ({term} vs {seen[slug]['term']})")
+        statuses = [s.strip() for s in status.split(",") if s.strip()]
+        alias_list = [a.strip() for a in aliases.split("|") if a.strip()]
+        seen[slug] = {
+            "slug": slug,
+            "term": term,
+            "definition": definition,
+            "category": category,
+            "status": statuses,
+            "aliases": alias_list,
+            "related": [],
+        }
+
+    terms = list(seen.values())
+
+    # Auto-relate: if a term's name (or long alias) appears in another definition.
+    names: list[tuple[str, str]] = []
+    for t in terms:
+        names.append((t["slug"], t["term"].split("(")[0].strip()))
+        for a in t["aliases"]:
+            if len(a) >= 4:
+                names.append((t["slug"], a))
+    names.sort(key=lambda x: len(x[1]), reverse=True)
+
+    for t in terms:
+        hay = (t["term"] + " " + t["definition"]).lower()
+        rel: list[str] = []
+        for slug, name in names:
+            if slug == t["slug"]:
+                continue
+            if len(name) < 4:
+                continue
+            if name.lower() in hay:
+                rel.append(slug)
+            if len(rel) >= 8:
+                break
+        t["related"] = list(dict.fromkeys(rel))
+
+    out = {
+        "title": "THE AI DICTIONARY",
+        "subtitle": "A Practical Reference for Modern AI Systems",
+        "version": "1.2",
+        "compiled": "2026-10-01",
+        "termCount": len(terms),
+        "terms": terms,
+    }
+    dest = Path("/workspace/src/data/glossary.json")
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_text(json.dumps(out, indent=2), encoding="utf-8")
+    print(f"wrote {len(terms)} terms -> {dest}")
+
+
+if __name__ == "__main__":
+    main()
