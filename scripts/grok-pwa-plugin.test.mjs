@@ -1,14 +1,14 @@
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import test from "node:test";
+import test, { after } from "node:test";
 import {
   appNameFromHost,
-  createHeadInjector,
+  createHeadInjector as createInjector,
   grokXCreatorHeadTags,
-  injectGrokPwaHead,
+  injectGrokPwaHead as injectHead,
   isDocumentPath,
   isInstallQuery,
   publicAppHost,
@@ -20,6 +20,18 @@ import {
 import { renderInstallPage } from "./grok-pwa-plugin.mjs";
 
 const TEMPLATE_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+const EMPTY_WORKSPACE = mkdtempSync(join(tmpdir(), "grok-pwa-empty-"));
+after(() => rmSync(EMPTY_WORKSPACE, { recursive: true, force: true }));
+
+// Generic head tests must not inherit this app's site.json or public share card.
+// Filesystem-specific tests can still supply their own workspace through ctx.cwd.
+function injectGrokPwaHead(html, ctx = {}) {
+  return injectHead(html, { cwd: EMPTY_WORKSPACE, ...ctx });
+}
+
+function createHeadInjector(ctx = {}) {
+  return createInjector({ cwd: EMPTY_WORKSPACE, ...ctx });
+}
 
 test("injects before </head>", () => {
   const out = injectGrokPwaHead("<html><head><title>x</title></head><body></body></html>");
@@ -354,12 +366,32 @@ test("document title entities are not double-escaped on og:title", () => {
   assert.doesNotMatch(out, /Cats &amp;amp; Dogs/);
 });
 
-test("site.json title wins over the host slug", () => {
-  const out = injectGrokPwaHead("<html><head></head></html>", {
+test("workspace identity wins over document title and host in buffered and streaming responses", (t) => {
+  const root = mkdtempSync(join(tmpdir(), "grok-og-identity-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  mkdirSync(join(root, "src/lib/og"), { recursive: true });
+  writeFileSync(join(root, "src/lib/og/site.json"), JSON.stringify({ title: "Pixel Nova" }));
+  mkdirSync(join(root, "public"));
+  writeFileSync(join(root, "public/og.jpg"), "x");
+  const ctx = {
+    cwd: root,
     host: "wild-race.grok.me",
-    site: { title: "Pixel Nova" },
-  });
-  assert.match(out, /property="og:title" content="Pixel Nova"/);
+    appName: "Argument Title",
+  };
+  const html = "<html><head><title>Route Title</title></head><body>hello</body></html>";
+  const injector = createHeadInjector(ctx);
+  const streamed = Buffer.concat([
+    ...injector.push("<html><head><title>Route Title</title></he"),
+    ...injector.push("ad><body>hello</body></html>"),
+    ...injector.flush(),
+  ]).toString("utf8");
+  const buffered = injectGrokPwaHead(html, ctx);
+  assert.equal(streamed, buffered);
+  assert.match(buffered, /property="og:title" content="Pixel Nova"/);
+  assert.match(buffered, /apple-mobile-web-app-title" content="Pixel Nova"/);
+  assert.match(buffered, /property="og:image" content="https:\/\/wild-race\.grok\.me\/og\.jpg"/);
+  assert.doesNotMatch(buffered, /og\.grok\.me/);
+  assert.match(buffered, /<title>Route Title<\/title>/);
 });
 
 test("injects into documents with no head element", () => {
@@ -503,4 +535,3 @@ test("vite plugin bakes og identity as a virtual module", () => {
   assert.match(plugin, /virtual:grok-og-identity/);
   assert.match(plugin, /snapshotOgIdentity/);
 });
-

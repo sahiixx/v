@@ -104,6 +104,25 @@ describe("callTool failure memo", () => {
     });
   });
 
+  it("memoizes opaque and malformed tokens independently by their full token", async () => {
+    await withStubbedGate(500, { ok: false, errorMessage: "boom" }, async (calls) => {
+      const tokens = [
+        "opaque-token",
+        "header.not-json.first-signature",
+        "header.not-json.second-signature",
+      ];
+      for (const [index, token] of tokens.entries()) {
+        const options = { connectorType: ConnectorType.GoogleDrive, token };
+        const first = await callTool("google_drive_search", { q: "opaque-memo" }, options);
+        const second = await callTool("google_drive_search", { q: "opaque-memo" }, options);
+        assert.equal(first.ok, false);
+        assert.equal(first.errorMessage, "boom");
+        assert.deepEqual(second, first);
+        assert.equal(calls(), index + 1);
+      }
+    });
+  });
+
   it("sweeps expired entries on write so unique keys do not accumulate", async () => {
     await withStubbedGate(500, { ok: false, errorMessage: "boom" }, async () => {
       mock.timers.enable({ apis: ["Date"], now: 1_000_000 });
